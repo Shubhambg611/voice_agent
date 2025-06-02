@@ -1,0 +1,26 @@
+# Production Flask Backend Dependencies
+Flask==2.3.3
+Flask-SocketIO==5.3.6
+Flask-CORS==4.0.0
+Flask-Limiter==3.5.0
+
+# AI Integration
+openai==1.3.7
+google-generativeai==0.3.2
+
+# Redis for session management and caching
+redis==5.0.1
+
+# Production utilities
+python-dotenv==1.0.0
+gunicorn==21.2.0
+gevent==23.9.1
+
+# Security and monitoring
+Werkzeug==2.3.7
+
+# Audio processing (if needed for local processing)
+pydub==0.25.1
+
+# For deployment and scaling
+psutil==5.9.6
