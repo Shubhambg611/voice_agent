@@ -173,14 +173,108 @@
             color: #e53e3e; 
         }
         
-        .audio-controls { 
+        .input-controls { 
             padding: 25px 30px; 
             background: rgba(255,255,255,0.95); 
             border-top: 1px solid #e2e8f0; 
-            display: flex; 
-            align-items: center; 
-            gap: 20px;
             backdrop-filter: blur(10px);
+        }
+        
+        .input-mode-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            gap: 10px;
+        }
+        
+        .mode-btn {
+            padding: 8px 16px;
+            border: 2px solid #e2e8f0;
+            background: white;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .mode-btn.active {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        
+        .mode-btn:hover:not(.active) {
+            border-color: #4299e1;
+            background: #f7fafc;
+        }
+        
+        .voice-controls {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .text-controls {
+            display: none;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .text-input-container {
+            position: relative;
+        }
+        
+        .text-input {
+            width: 100%;
+            min-height: 60px;
+            padding: 15px 50px 15px 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 16px;
+            font-family: inherit;
+            resize: vertical;
+            transition: all 0.3s ease;
+        }
+        
+        .text-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .text-send-btn {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+        
+        .text-send-btn:hover {
+            transform: translateY(-50%) scale(1.1);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .text-send-btn:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: translateY(-50%);
         }
         
         .mic-button { 
@@ -483,12 +577,23 @@
             30% { transform: scale(1); opacity: 1; }
         }
         
+        .speech-not-supported {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            display: none;
+        }
+        
         @media (max-width: 768px) { 
             .container { flex-direction: column; height: 100vh; }
             .notes-panel { width: 100%; height: 40vh; }
             .conversation-panel { height: 60vh; }
-            .audio-controls { padding: 20px; }
+            .input-controls { padding: 20px; }
             .mic-button { width: 56px; height: 56px; font-size: 24px; }
+            .voice-controls { flex-direction: column; gap: 15px; }
         }
     </style>
 </head>
@@ -539,15 +644,51 @@
                 
                 <div class="live-transcript">
                     <div class="transcript-label">🎤 Live Transcript</div>
-                    <div class="transcript-text listening" id="liveTranscript">Getting ready to listen... Click the microphone when you're ready to speak!</div>
+                    <div class="transcript-text listening" id="liveTranscript">Choose voice or text input to start our conversation!</div>
                 </div>
             </div>
             
-            <div class="audio-controls">
-                <button class="mic-button" id="micButton" onclick="toggleRecording()">🎤</button>
-                <div>
-                    <div class="status-text" id="statusText">Ready to start! Click the microphone to begin</div>
-                    <div class="status-subtext" id="statusSubtext">Make sure you're in a quiet environment for best results</div>
+            <div class="input-controls">
+                <!-- Input Mode Toggle -->
+                <div class="input-mode-toggle">
+                    <button class="mode-btn active" id="voiceModeBtn" onclick="switchToVoiceMode()">
+                        🎤 Voice Input
+                    </button>
+                    <button class="mode-btn" id="textModeBtn" onclick="switchToTextMode()">
+                        ⌨️ Text Input
+                    </button>
+                </div>
+                
+                <!-- Speech Recognition Warning -->
+                <div class="speech-not-supported" id="speechWarning">
+                    ⚠️ Speech recognition is not supported in your browser. Please use text input instead.
+                </div>
+                
+                <!-- Voice Controls -->
+                <div class="voice-controls" id="voiceControls">
+                    <button class="mic-button" id="micButton" onclick="toggleRecording()">🎤</button>
+                    <div>
+                        <div class="status-text" id="statusText">Ready to start! Click the microphone to begin</div>
+                        <div class="status-subtext" id="statusSubtext">Make sure you're in a quiet environment for best results</div>
+                    </div>
+                </div>
+                
+                <!-- Text Controls -->
+                <div class="text-controls" id="textControls">
+                    <div class="text-input-container">
+                        <textarea 
+                            class="text-input" 
+                            id="textInput" 
+                            placeholder="Type your response here... Press Enter to send or Shift+Enter for a new line"
+                            rows="3"
+                        ></textarea>
+                        <button class="text-send-btn" id="textSendBtn" onclick="sendTextMessage()" disabled>
+                            ➤
+                        </button>
+                    </div>
+                    <div style="font-size: 13px; color: #718096;">
+                        💡 Tip: Write naturally and share as much detail as you'd like. The more you share, the better your essay will be!
+                    </div>
                 </div>
             </div>
         </div>
@@ -623,6 +764,7 @@
 
     <script>
         // Global variables
+        let currentInputMode = 'voice'; // 'voice' or 'text'
         let isRecording = false;
         let sessionStartTime = Date.now();
         let conversationHistory = [];
@@ -639,17 +781,234 @@
         let speechEnabled = false;
         let conversationStage = 0;
         let userName = '';
+        let enhancedTTSAvailable = false;
+        let recommendedTTSMethod = 'browser';
+        let currentAudio = null;
 
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🎤 Voice Essay AI - Initializing...');
             startTimer();
+            checkEnhancedTTS();
             initializeAudio();
+            setupTextInput();
+            
+            // Check if speech recognition is supported
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                document.getElementById('speechWarning').style.display = 'block';
+                switchToTextMode();
+            }
+            
+            // Add manual test button for TTS
+            addTestTTSButton();
             
             // Start the conversation automatically after a delay
             setTimeout(() => {
                 startInitialGreeting();
-            }, 2000);
+            }, 3000); // Increased delay to ensure voices are loaded
         });
+
+        function addTestTTSButton() {
+            // Add a test button to manually trigger TTS
+            const testButton = document.createElement('button');
+            testButton.textContent = '🔊 Test Audio';
+            testButton.style.cssText = `
+                position: fixed;
+                top: 10px;
+                right: 10px;
+                z-index: 1000;
+                padding: 8px 16px;
+                background: #ff6b6b;
+                color: white;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 14px;
+            `;
+            
+            testButton.onclick = function() {
+                console.log('🔊 Manual TTS test triggered');
+                forceBrowserTTS('This is a test of the text to speech system. Can you hear me?');
+            };
+            
+            document.body.appendChild(testButton);
+        }
+
+        function switchToVoiceMode() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                alert('Speech recognition is not supported in your browser. Please use text input instead.');
+                return;
+            }
+            
+            currentInputMode = 'voice';
+            
+            // Update UI
+            document.getElementById('voiceModeBtn').classList.add('active');
+            document.getElementById('textModeBtn').classList.remove('active');
+            document.getElementById('voiceControls').style.display = 'flex';
+            document.getElementById('textControls').style.display = 'none';
+            
+            // Update transcript label
+            document.getElementById('liveTranscript').textContent = 'Click the microphone when you\'re ready to speak!';
+            updateStatus('Voice mode active', 'Click the microphone to start speaking');
+        }
+
+        function switchToTextMode() {
+            currentInputMode = 'text';
+            
+            // Stop any ongoing voice recording
+            if (isRecording) {
+                stopRecording();
+            }
+            
+            // Update UI
+            document.getElementById('textModeBtn').classList.add('active');
+            document.getElementById('voiceModeBtn').classList.remove('active');
+            document.getElementById('textControls').style.display = 'flex';
+            document.getElementById('voiceControls').style.display = 'none';
+            
+            // Update transcript to show text mode
+            document.getElementById('liveTranscript').textContent = 'Text mode active - type your response below';
+            updateStatus('Text mode active', 'Type your response in the text box below');
+            
+            // Focus on text input
+            setTimeout(() => {
+                document.getElementById('textInput').focus();
+            }, 100);
+        }
+
+        function setupTextInput() {
+            const textInput = document.getElementById('textInput');
+            const sendBtn = document.getElementById('textSendBtn');
+            
+            // Enable/disable send button based on input
+            textInput.addEventListener('input', function() {
+                const hasText = this.value.trim().length > 0;
+                sendBtn.disabled = !hasText;
+                
+                // Auto-resize textarea
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 150) + 'px';
+            });
+            
+            // Handle Enter key (send message) and Shift+Enter (new line)
+            textInput.addEventListener('keydown', function(event) {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    if (this.value.trim()) {
+                        sendTextMessage();
+                    }
+                }
+            });
+            
+            // Handle paste events
+            textInput.addEventListener('paste', function(event) {
+                setTimeout(() => {
+                    const hasText = this.value.trim().length > 0;
+                    sendBtn.disabled = !hasText;
+                }, 0);
+            });
+        }
+
+        async function sendTextMessage() {
+            const textInput = document.getElementById('textInput');
+            const message = textInput.value.trim();
+            
+            if (!message) return;
+            
+            // Disable input while processing
+            textInput.disabled = true;
+            document.getElementById('textSendBtn').disabled = true;
+            
+            // Clear input
+            textInput.value = '';
+            textInput.style.height = 'auto';
+            
+            // Update status
+            updateStatus('Processing your message...', 'Getting AI response');
+            
+            try {
+                // Add user message immediately
+                addMessage('user', message);
+                
+                // Show typing indicator
+                showTypingIndicator();
+                
+                // Send to AI for response
+                const response = await fetch('/api/voice-respond', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        message: message, 
+                        conversation_id: conversationId 
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Hide typing indicator
+                    hideTypingIndicator();
+                    
+                    // Add AI response to chat
+                    setTimeout(() => {
+                        addMessage('ai', result.ai_response);
+                        
+                        // Update notes and progress
+                        updateNotes(message, result.ai_response);
+                        updateConversationProgress();
+                        checkEssayReadiness();
+                        
+                        // Store user name if this is the first interaction
+                        if (!userName && conversationHistory.length <= 2) {
+                            userName = extractUserName(message);
+                        }
+                        
+                        // ALWAYS speak the AI response regardless of input mode
+                        if (speechEnabled) {
+                            forceBrowserTTS(result.ai_response);
+                        }
+                        
+                        // Reset status for text mode (don't auto-switch to voice)
+                        updateStatus('Ready for your next response', 'Type your message below or switch to voice');
+                        
+                    }, 300);
+                } else {
+                    hideTypingIndicator();
+                    console.error('API error:', result.error);
+                    updateStatus('Error processing response', 'Please try again');
+                }
+                
+            } catch (error) {
+                hideTypingIndicator();
+                console.error('Error sending text message:', error);
+                updateStatus('Connection error', 'Please check your internet connection and try again');
+            } finally {
+                // Re-enable input
+                textInput.disabled = false;
+                textInput.focus();
+            }
+        }
+
+        async function checkEnhancedTTS() {
+            try {
+                const response = await fetch('/api/tts-info');
+                const ttsInfo = await response.json();
+                
+                enhancedTTSAvailable = false; // Disable enhanced TTS for now to ensure browser TTS works
+                recommendedTTSMethod = 'browser';
+                
+                console.log('🔊 TTS Info:', ttsInfo);
+                console.log('🔊 Enhanced TTS Available:', enhancedTTSAvailable);
+                console.log('🔊 Recommended Method:', recommendedTTSMethod);
+                
+                speechEnabled = true;
+            } catch (error) {
+                console.warn('⚠️ Could not check enhanced TTS, using browser fallback');
+                enhancedTTSAvailable = false;
+                recommendedTTSMethod = 'browser';
+                speechEnabled = true;
+            }
+        }
 
         function startTimer() {
             setInterval(() => {
@@ -676,12 +1035,14 @@
                 // Setup speech synthesis
                 setupSpeechSynthesis();
                 
-                updateLiveTranscript('Audio systems ready! Preparing to start conversation...', 'normal');
+                updateLiveTranscript('Audio systems ready! Choose voice or text input to start...', 'normal');
                 updateMicButtonState('ready');
                 
             } catch (error) {
                 console.error('❌ Microphone permission denied:', error);
                 handleMicrophoneError(error);
+                // Auto-switch to text mode if microphone fails
+                switchToTextMode();
             }
         }
 
@@ -699,6 +1060,9 @@
             
             updateLiveTranscript(errorMessage, 'error');
             updateStatus(errorMessage, errorDetails);
+            
+            // Show speech warning
+            document.getElementById('speechWarning').style.display = 'block';
         }
 
         function setupSpeechSynthesis() {
@@ -710,20 +1074,43 @@
             
             function loadVoices() {
                 const voices = speechSynthesis.getVoices();
+                console.log('🔊 Loading voices... Found:', voices.length);
                 if (voices.length > 0) {
                     voicesLoaded = true;
                     speechEnabled = true;
                     console.log('✅ Speech synthesis ready with', voices.length, 'voices');
+                    
+                    // Log available voices for debugging
+                    voices.forEach((voice, index) => {
+                        console.log(`Voice ${index}: ${voice.name} (${voice.lang}) - ${voice.localService ? 'Local' : 'Remote'}`);
+                    });
+                } else {
+                    console.log('⚠️ No voices found yet');
                 }
             }
             
+            // Load voices immediately
             loadVoices();
-            speechSynthesis.onvoiceschanged = loadVoices;
             
+            // Set up voice change listener
+            if (speechSynthesis.onvoiceschanged !== undefined) {
+                speechSynthesis.onvoiceschanged = loadVoices;
+            }
+            
+            // Force voice loading after a delay
             setTimeout(() => {
                 if (!voicesLoaded) {
-                    console.log('⚠️ Speech synthesis timeout - continuing without TTS');
-                    speechEnabled = false;
+                    console.log('⚠️ Voices still not loaded, trying again...');
+                    loadVoices();
+                    speechEnabled = true; // Enable anyway
+                }
+            }, 1000);
+            
+            // Final fallback
+            setTimeout(() => {
+                if (!voicesLoaded) {
+                    console.log('⚠️ Speech synthesis timeout - enabling anyway');
+                    speechEnabled = true;
                 }
             }, 3000);
         }
@@ -732,6 +1119,7 @@
             if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
                 console.error('❌ Speech recognition not supported');
                 updateLiveTranscript('Speech recognition not supported in this browser', 'error');
+                document.getElementById('speechWarning').style.display = 'block';
                 return;
             }
             
@@ -818,26 +1206,122 @@
         function startInitialGreeting() {
             const greeting = "Hey there! I'm absolutely thrilled to be your personal essay brainstorming coach! I'm here to help you discover and craft your unique story into an amazing college application essay. We're going to have a natural, friendly conversation where you just share your experiences, and I'll help you uncover the perfect story. What's your name, by the way?";
             
-            if (speechEnabled) {
-                speakText(greeting);
-            } else {
-                // If speech synthesis not available, just prepare for listening
-                updateMicButtonState('ready');
-                updateLiveTranscript('Click the microphone to start our conversation!', 'normal');
-                updateStatus('Ready to listen!', 'Click the microphone when you\'re ready to share');
-            }
+            // Force browser TTS for initial greeting
+            console.log('🔊 Starting initial greeting with force browser TTS');
+            forceBrowserTTS(greeting);
         }
 
-        function speakText(text, callback) {
-            if (!speechEnabled || !speechSynthesis) {
+        function forceBrowserTTS(text) {
+            console.log('🔊 Force Browser TTS called with text:', text.substring(0, 50) + '...');
+            
+            if (!window.speechSynthesis) {
+                console.error('❌ Speech Synthesis not supported');
+                // Don't update UI states when TTS fails - just continue normally
+                return;
+            }
+            
+            // Cancel any existing speech
+            speechSynthesis.cancel();
+            
+            // Wait a moment then speak
+            setTimeout(() => {
+                const utterance = new SpeechSynthesisUtterance(text);
+                
+                // Simple, reliable settings
+                utterance.rate = 1.0;
+                utterance.pitch = 1.0;
+                utterance.volume = 1.0;
+                utterance.lang = 'en-US';
+                
+                // Get voices and use the first available English voice
+                const voices = speechSynthesis.getVoices();
+                console.log('🔊 Available voices count:', voices.length);
+                
+                if (voices.length > 0) {
+                    const englishVoice = voices.find(voice => 
+                        voice.lang.includes('en') || voice.lang.includes('EN')
+                    ) || voices[0];
+                    
+                    utterance.voice = englishVoice;
+                    console.log('🔊 Selected voice:', englishVoice.name, 'Lang:', englishVoice.lang);
+                } else {
+                    console.log('🔊 No voices available, using default');
+                }
+                
+                utterance.onstart = function() {
+                    console.log('🔊 Speech started!');
+                    isSpeaking = true;
+                    updateMicButtonState('speaking');
+                    updateLiveTranscript('🔊 AI is speaking...', 'speaking');
+                    updateStatus('AI is speaking...', 'Listen to the AI coach');
+                };
+                
+                utterance.onend = function() {
+                    console.log('🔇 Speech ended!');
+                    isSpeaking = false;
+                    
+                    // Auto-behavior based on current input mode
+                    if (currentInputMode === 'voice') {
+                        // In voice mode: auto-start listening after speech
+                        setTimeout(() => {
+                            if (!isSpeaking && !isRecording) {
+                                startAutoListening();
+                            }
+                        }, 800);
+                    } else {
+                        // In text mode: return to text input ready state
+                        updateMicButtonState('ready');
+                        updateLiveTranscript('AI finished speaking - continue with text or voice', 'normal');
+                        updateStatus('Ready for your next response', 'Type below or switch to voice mode');
+                        // Focus back on text input
+                        setTimeout(() => {
+                            document.getElementById('textInput').focus();
+                        }, 100);
+                    }
+                };
+                
+                utterance.onerror = function(event) {
+                    console.error('🔊 Speech error:', event.error);
+                    isSpeaking = false;
+                    // Don't disrupt the user experience on TTS errors
+                    if (currentInputMode === 'text') {
+                        updateStatus('Ready for your next response', 'Type below (audio unavailable)');
+                        document.getElementById('textInput').focus();
+                    } else {
+                        updateMicButtonState('ready');
+                        updateStatus('Ready for voice input', 'Audio unavailable - using voice recognition only');
+                    }
+                };
+                
+                console.log('🔊 About to speak...');
+                speechSynthesis.speak(utterance);
+                
+                // Manual check after a moment
+                setTimeout(() => {
+                    if (speechSynthesis.speaking) {
+                        console.log('✅ Speech synthesis is active');
+                    } else {
+                        console.log('❌ Speech synthesis not active');
+                    }
+                }, 500);
+                
+            }, 300);
+        }
+
+        async function speakText(text, callback) {
+            if (!speechEnabled) {
                 console.log('⚠️ Speech synthesis not available');
                 if (callback) callback();
                 return;
             }
             
-            // Cancel any ongoing speech
+            // Cancel any ongoing speech completely
             if (isSpeaking) {
                 speechSynthesis.cancel();
+                stopCurrentAudio();
+                isSpeaking = false;
+                // Wait a moment to ensure everything is stopped
+                await new Promise(resolve => setTimeout(resolve, 100));
             }
             
             isSpeaking = true;
@@ -845,40 +1329,174 @@
             updateMicButtonState('speaking');
             updateStatus('AI is speaking...', 'Listen to the AI coach');
             
+            // Try enhanced TTS first
+            if (enhancedTTSAvailable && (recommendedTTSMethod === 'edge_tts' || recommendedTTSMethod === 'gtts')) {
+                try {
+                    await playEnhancedTTS(text, callback);
+                    return; // Successfully used enhanced TTS, don't use browser TTS
+                } catch (error) {
+                    console.warn('Enhanced TTS failed, falling back to browser TTS:', error);
+                    // Reset speaking state before fallback
+                    isSpeaking = false;
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+            }
+            
+            // Only use browser TTS if enhanced TTS failed or isn't available
+            if (!isSpeaking) {
+                isSpeaking = true;
+                useBrowserTTS(text, callback);
+            }
+        }
+
+        async function playEnhancedTTS(text, callback) {
+            try {
+                const response = await fetch('/api/enhanced-tts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        text: text, 
+                        method: recommendedTTSMethod 
+                    })
+                });
+                
+                if (response.ok) {
+                    const contentType = response.headers.get('content-type');
+                    console.log('🔊 Enhanced TTS response content-type:', contentType);
+                    
+                    if (contentType && contentType.includes('audio')) {
+                        const audioBlob = await response.blob();
+                        const audioUrl = URL.createObjectURL(audioBlob);
+                        
+                        const audio = new Audio(audioUrl);
+                        currentAudio = audio;
+                        
+                        // Make sure browser TTS is completely stopped
+                        speechSynthesis.cancel();
+                        
+                        audio.onloadeddata = function() {
+                            console.log('🔊 Enhanced TTS audio loaded');
+                        };
+                        
+                        audio.oncanplaythrough = function() {
+                            console.log('🔊 Enhanced TTS audio ready, playing...');
+                            audio.play().catch(error => {
+                                console.error('Enhanced TTS play failed:', error);
+                                throw new Error('Audio play failed');
+                            });
+                        };
+                        
+                        audio.onended = function() {
+                            console.log('🔇 Enhanced TTS finished');
+                            isSpeaking = false;
+                            currentAudio = null;
+                            URL.revokeObjectURL(audioUrl);
+                            
+                            // Auto-start listening after AI finishes speaking (only in voice mode)
+                            setTimeout(() => {
+                                if (!isSpeaking && !isRecording && currentInputMode === 'voice') {
+                                    startAutoListening();
+                                } else if (currentInputMode === 'text') {
+                                    updateStatus('Ready for your next response', 'Type your message below');
+                                    document.getElementById('textInput').focus();
+                                }
+                            }, 800);
+                            
+                            if (callback) callback();
+                        };
+                        
+                        audio.onerror = function(error) {
+                            console.error('Enhanced TTS playback error:', error);
+                            isSpeaking = false;
+                            currentAudio = null;
+                            URL.revokeObjectURL(audioUrl);
+                            throw new Error('Enhanced TTS playback failed');
+                        };
+                        
+                        return; // Successfully started enhanced TTS
+                    } else {
+                        console.log('🔊 Enhanced TTS response not audio, content-type:', contentType);
+                        throw new Error('Enhanced TTS response not audio');
+                    }
+                } else {
+                    console.log('🔊 Enhanced TTS HTTP error:', response.status);
+                    throw new Error(`Enhanced TTS HTTP error: ${response.status}`);
+                }
+                
+            } catch (error) {
+                console.error('Enhanced TTS error:', error);
+                if (currentAudio) {
+                    currentAudio.pause();
+                    currentAudio = null;
+                }
+                isSpeaking = false;
+                throw error; // Let caller handle fallback
+            }
+        }
+
+        function useBrowserTTS(text, callback) {
+            // Double-check that enhanced TTS isn't playing
+            if (currentAudio) {
+                console.log('🚫 Enhanced TTS is playing, skipping browser TTS');
+                return;
+            }
+            
+            // Make sure we're not already speaking
+            if (speechSynthesis.speaking) {
+                speechSynthesis.cancel();
+                // Wait a moment for cancellation to complete
+                setTimeout(() => useBrowserTTS(text, callback), 200);
+                return;
+            }
+            
             const utterance = new SpeechSynthesisUtterance(text);
             
-            // Configure voice settings for a warm, friendly tone
-            utterance.rate = 0.9;
-            utterance.pitch = 1.0;
+            // Configure voice settings for more natural sound
+            utterance.rate = 0.85;  // Slightly slower for more natural sound
+            utterance.pitch = 1.1;  // Slightly higher pitch for friendliness
             utterance.volume = 0.9;
             
-            // Try to find a warm, friendly voice
+            // Try to find the best available voice
             const voices = speechSynthesis.getVoices();
             const preferredVoice = voices.find(voice => 
-                voice.name.includes('Google') || 
+                // Prefer high-quality neural voices
+                voice.name.includes('Neural') ||
+                voice.name.includes('Premium') ||
+                voice.name.includes('Enhanced') ||
+                // Then Microsoft voices
                 voice.name.includes('Microsoft') ||
+                // Then Google voices
+                voice.name.includes('Google') ||
+                // Then specific good voices
                 voice.name.includes('Samantha') ||
                 voice.name.includes('Victoria') ||
+                voice.name.includes('Aria') ||
+                voice.name.includes('Jenny') ||
+                // Fallback to any English voice
                 (voice.lang.startsWith('en') && voice.localService)
             ) || voices.find(voice => voice.lang.startsWith('en')) || voices[0];
             
             if (preferredVoice) {
                 utterance.voice = preferredVoice;
-                console.log('🔊 Using voice:', preferredVoice.name);
+                console.log('🔊 Using browser voice:', preferredVoice.name);
             }
             
             utterance.onstart = function() {
-                console.log('🔊 AI started speaking');
+                console.log('🔊 Browser TTS started speaking');
+                isSpeaking = true;
             };
             
             utterance.onend = function() {
-                console.log('🔇 AI finished speaking');
+                console.log('🔇 Browser TTS finished speaking');
                 isSpeaking = false;
                 
-                // Auto-start listening after AI finishes speaking
+                // Auto-start listening after AI finishes speaking (only in voice mode)
                 setTimeout(() => {
-                    if (!isSpeaking && !isRecording) {
+                    if (!isSpeaking && !isRecording && currentInputMode === 'voice') {
                         startAutoListening();
+                    } else if (currentInputMode === 'text') {
+                        updateStatus('Ready for your next response', 'Type your message below');
+                        document.getElementById('textInput').focus();
                     }
                 }, 800);
                 
@@ -886,24 +1504,48 @@
             };
             
             utterance.onerror = function(event) {
-                console.error('Speech synthesis error:', event.error);
+                console.error('Browser TTS error:', event.error);
                 isSpeaking = false;
                 updateMicButtonState('ready');
+                if (currentInputMode === 'text') {
+                    updateStatus('Ready for your next response', 'Type your message below');
+                    document.getElementById('textInput').focus();
+                }
                 if (callback) callback();
             };
             
             try {
+                console.log('🔊 Starting browser TTS...');
                 speechSynthesis.speak(utterance);
             } catch (error) {
-                console.error('Error starting speech:', error);
+                console.error('Error starting browser TTS:', error);
                 isSpeaking = false;
                 updateMicButtonState('ready');
                 if (callback) callback();
             }
         }
 
+        function stopCurrentAudio() {
+            // Stop any enhanced TTS audio
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                currentAudio = null;
+            }
+            
+            // Stop browser speech synthesis
+            if (speechSynthesis.speaking) {
+                speechSynthesis.cancel();
+            }
+            
+            // Reset speaking state
+            isSpeaking = false;
+            
+            console.log('🔇 All audio stopped');
+        }
+
         function startAutoListening() {
-            if (isSpeaking || isRecording) return;
+            if (isSpeaking || isRecording || currentInputMode !== 'voice') return;
             
             console.log('🎤 Starting auto-listening mode');
             updateMicButtonState('auto-listening');
@@ -911,7 +1553,7 @@
             updateStatus('Ready to listen!', 'Start speaking and I\'ll automatically detect when you\'re done');
             
             setTimeout(() => {
-                if (!isSpeaking && !isRecording) {
+                if (!isSpeaking && !isRecording && currentInputMode === 'voice') {
                     startRecording(true);
                 }
             }, 1000);
@@ -962,11 +1604,17 @@
         }
 
         async function toggleRecording() {
+            if (currentInputMode !== 'voice') {
+                switchToVoiceMode();
+                return;
+            }
+            
             if (isSpeaking) {
-                // If AI is speaking, stop speech and start listening
-                speechSynthesis.cancel();
-                isSpeaking = false;
-                setTimeout(() => startRecording(), 300);
+                // If AI is speaking, stop ALL speech and start listening
+                console.log('🔇 Stopping all speech to start listening');
+                stopCurrentAudio();
+                await new Promise(resolve => setTimeout(resolve, 300));
+                startRecording();
             } else if (isRecording) {
                 stopRecording();
             } else {
@@ -984,6 +1632,7 @@
             try {
                 if (isSpeaking) {
                     speechSynthesis.cancel();
+                    stopCurrentAudio();
                     isSpeaking = false;
                 }
                 
@@ -1073,9 +1722,9 @@
                             userName = extractUserName(transcript);
                         }
                         
-                        // Speak the AI response
+                        // ALWAYS speak the AI response regardless of input mode
                         if (speechEnabled) {
-                            speakText(result.ai_response);
+                            forceBrowserTTS(result.ai_response);
                         } else {
                             // If no speech, just reset to ready state
                             updateMicButtonState('ready');
@@ -1104,7 +1753,7 @@
         function addMessage(sender, content) {
             const messagesContainer = document.getElementById('messagesContainer');
             const messageDiv = document.createElement('div');
-            messageDiv.className = 'message';
+            messageDiv.className = 'message ' + sender;
             messageDiv.style.animationDelay = '0.1s';
             
             const avatar = sender === 'user' ? 'YOU' : 'AI';
@@ -1140,8 +1789,8 @@
                 /i'm (\w+)/i,
                 /i am (\w+)/i,
                 /call me (\w+)/i,
-                /this is (\w+)/i,
-                /(\w+) here/i
+                /name's (\w+)/i,
+                /this is (\w+)/i
             ];
             
             for (const pattern of patterns) {
@@ -1319,8 +1968,8 @@ Your complete essay has been saved and can be viewed in the Dashboard.
 
         // Keyboard shortcuts
         document.addEventListener('keydown', function(event) {
-            // Spacebar to toggle recording (when not typing in an input)
-            if (event.code === 'Space' && !event.target.matches('input, textarea')) {
+            // Spacebar to toggle recording (when not typing in text input)
+            if (event.code === 'Space' && !event.target.matches('input, textarea') && currentInputMode === 'voice') {
                 event.preventDefault();
                 toggleRecording();
             }
@@ -1329,6 +1978,25 @@ Your complete essay has been saved and can be viewed in the Dashboard.
             if (event.code === 'Escape' && isRecording) {
                 event.preventDefault();
                 stopRecording();
+            }
+            
+            // Ctrl/Cmd + Enter to send text message
+            if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && currentInputMode === 'text') {
+                event.preventDefault();
+                const textInput = document.getElementById('textInput');
+                if (textInput.value.trim()) {
+                    sendTextMessage();
+                }
+            }
+            
+            // Tab to switch between input modes
+            if (event.key === 'Tab' && event.altKey) {
+                event.preventDefault();
+                if (currentInputMode === 'voice') {
+                    switchToTextMode();
+                } else {
+                    switchToVoiceMode();
+                }
             }
         });
 
@@ -1365,11 +2033,23 @@ Your complete essay has been saved and can be viewed in the Dashboard.
             setTimeout(smoothScrollToBottom, 100);
         };
 
-        console.log('🎤 Voice Essay AI - Ready!');
+        // Add input mode indicator in status
+        function updateInputModeStatus() {
+            const modeText = currentInputMode === 'voice' ? 'Voice' : 'Text';
+            const statusElement = document.getElementById('statusText');
+            if (statusElement && !isRecording && !isSpeaking) {
+                statusElement.textContent = `${modeText} mode active - Ready for your response`;
+            }
+        }
+
+        console.log('🎤 Voice Essay AI - Enhanced with Text Input Ready!');
         console.log('💡 Tips:');
-        console.log('  • Press SPACEBAR to start/stop recording');
-        console.log('  • Press ESCAPE to stop recording');
-        console.log('  • Speak naturally and conversationally');
+        console.log('  • Toggle between voice and text input with the buttons');
+        console.log('  • Voice: Press SPACEBAR to start/stop recording');
+        console.log('  • Text: Press ENTER to send, SHIFT+ENTER for new line');
+        console.log('  • Press ALT+TAB to switch input modes');
+        console.log('  • Press CTRL/CMD+ENTER to send text message');
+        console.log('  • Speak naturally or type detailed responses');
         console.log('  • The AI will automatically detect when you finish speaking');
     </script>
 </body>

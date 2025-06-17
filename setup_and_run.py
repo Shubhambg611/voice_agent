@@ -37,7 +37,12 @@ def install_dependencies():
         "flask-cors==4.0.0", 
         "openai-whisper==20231117",
         "torch>=2.0.0",
-        "requests==2.31.0"
+        "requests==2.31.0",
+        "pyttsx3==2.90",
+        "edge-tts==6.1.9",
+        "gTTS==2.4.0",
+        "pygame==2.5.2",
+        "pydub==0.25.1"
     ]
     
     for package in packages:

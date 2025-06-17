@@ -8,7 +8,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
 
 # Auto-install missing packages
@@ -26,7 +26,7 @@ def install_and_import(package_name, import_name=None):
         subprocess.check_call([sys.executable, "-m", "pip", "install", package_name])
         return __import__(import_name)
 
-# Auto-install required packages
+# Auto-install required packages including TTS
 try:
     import flask
     from flask_cors import CORS
@@ -50,6 +50,48 @@ try:
 except ImportError:
     install_and_import("requests")
     import requests
+
+# Enhanced TTS libraries
+try:
+    import pyttsx3
+    TTS_PYTTSX3_AVAILABLE = True
+except ImportError:
+    print("📦 Installing enhanced TTS...")
+    install_and_import("pyttsx3")
+    try:
+        import pyttsx3
+        TTS_PYTTSX3_AVAILABLE = True
+    except:
+        TTS_PYTTSX3_AVAILABLE = False
+
+try:
+    import edge_tts
+    import asyncio
+    TTS_EDGE_AVAILABLE = True
+except ImportError:
+    try:
+        install_and_import("edge-tts", "edge_tts")
+        import edge_tts
+        import asyncio
+        TTS_EDGE_AVAILABLE = True
+    except:
+        TTS_EDGE_AVAILABLE = False
+
+try:
+    from gtts import gTTS
+    import pygame
+    import io
+    TTS_GTTS_AVAILABLE = True
+except ImportError:
+    try:
+        install_and_import("gTTS", "gtts")
+        install_and_import("pygame")
+        from gtts import gTTS
+        import pygame
+        import io
+        TTS_GTTS_AVAILABLE = True
+    except:
+        TTS_GTTS_AVAILABLE = False
 
 # Setup logging
 logging.basicConfig(
@@ -481,6 +523,210 @@ Write the complete essay:"""
         
         return self.generate_enhanced_essay(content, word_count)
 
+# ============================================================================
+# Enhanced Text-to-Speech Service
+# ============================================================================
+
+class EnhancedTTSService:
+    def __init__(self):
+        self.pyttsx3_engine = None
+        self.available_methods = []
+        self.initialize_tts()
+    
+    def initialize_tts(self):
+        """Initialize available TTS methods"""
+        logger.info("Initializing enhanced TTS service...")
+        
+        # Try pyttsx3 (best for natural voices)
+        if TTS_PYTTSX3_AVAILABLE:
+            try:
+                self.pyttsx3_engine = pyttsx3.init()
+                self._configure_pyttsx3()
+                self.available_methods.append('pyttsx3')
+                logger.info("✅ pyttsx3 TTS initialized")
+            except Exception as e:
+                logger.warning(f"pyttsx3 TTS failed: {e}")
+        
+        # Check Edge TTS availability
+        if TTS_EDGE_AVAILABLE:
+            self.available_methods.append('edge_tts')
+            logger.info("✅ Edge TTS available")
+        
+        # Check Google TTS availability
+        if TTS_GTTS_AVAILABLE:
+            try:
+                pygame.mixer.init()
+                self.available_methods.append('gtts')
+                logger.info("✅ Google TTS available")
+            except Exception as e:
+                logger.warning(f"Google TTS failed: {e}")
+        
+        # Fallback to browser TTS
+        self.available_methods.append('browser')
+        logger.info(f"TTS methods available: {self.available_methods}")
+    
+    def _configure_pyttsx3(self):
+        """Configure pyttsx3 for natural speech"""
+        if not self.pyttsx3_engine:
+            return
+        
+        try:
+            # Get available voices
+            voices = self.pyttsx3_engine.getProperty('voices')
+            
+            # Find best voice (prefer female, English)
+            best_voice = None
+            for voice in voices:
+                if voice.languages and 'en' in str(voice.languages).lower():
+                    if 'female' in voice.name.lower() or 'zira' in voice.name.lower() or 'hazel' in voice.name.lower():
+                        best_voice = voice
+                        break
+                    elif not best_voice:  # Fallback to any English voice
+                        best_voice = voice
+            
+            if best_voice:
+                self.pyttsx3_engine.setProperty('voice', best_voice.id)
+                logger.info(f"Using voice: {best_voice.name}")
+            
+            # Configure speech properties for natural sound
+            self.pyttsx3_engine.setProperty('rate', 175)  # Slightly slower for clarity
+            self.pyttsx3_engine.setProperty('volume', 0.9)
+            
+        except Exception as e:
+            logger.warning(f"Could not configure pyttsx3: {e}")
+    
+    async def generate_edge_tts_audio(self, text):
+        """Generate audio using Edge TTS (most natural)"""
+        try:
+            # Use a natural female voice
+            voice = "en-US-AriaNeural"  # Very natural sounding
+            communicate = edge_tts.Communicate(text, voice)
+            
+            audio_data = b""
+            async for chunk in communicate.stream():
+                if chunk["type"] == "audio":
+                    audio_data += chunk["data"]
+            
+            return audio_data
+        except Exception as e:
+            logger.error(f"Edge TTS error: {e}")
+            return None
+    
+    def generate_gtts_audio(self, text):
+        """Generate audio using Google TTS"""
+        try:
+            tts = gTTS(text=text, lang='en', slow=False)
+            audio_buffer = io.BytesIO()
+            tts.write_to_fp(audio_buffer)
+            audio_buffer.seek(0)
+            return audio_buffer.getvalue()
+        except Exception as e:
+            logger.error(f"Google TTS error: {e}")
+            return None
+    
+    def speak_pyttsx3(self, text):
+        """Speak using pyttsx3 (synchronous)"""
+        if not self.pyttsx3_engine:
+            return False
+        
+        try:
+            self.pyttsx3_engine.say(text)
+            self.pyttsx3_engine.runAndWait()
+            return True
+        except Exception as e:
+            logger.error(f"pyttsx3 speak error: {e}")
+            return False
+    
+    def get_best_method(self):
+        """Get the best available TTS method"""
+        if 'edge_tts' in self.available_methods:
+            return 'edge_tts'
+        elif 'pyttsx3' in self.available_methods:
+            return 'pyttsx3'
+        elif 'gtts' in self.available_methods:
+            return 'gtts'
+        else:
+            return 'browser'
+
+# Initialize enhanced TTS service
+enhanced_tts = EnhancedTTSService()
+
+# ============================================================================
+# Enhanced API Routes for Better TTS
+# ============================================================================
+
+@app.route('/api/enhanced-tts', methods=['POST'])
+def enhanced_tts_endpoint():
+    """Generate enhanced TTS audio"""
+    try:
+        data = request.get_json()
+        text = data.get('text', '')
+        method = data.get('method', enhanced_tts.get_best_method())
+        
+        if not text:
+            return jsonify({'error': 'No text provided'}), 400
+        
+        if method == 'edge_tts' and TTS_EDGE_AVAILABLE:
+            # Generate Edge TTS audio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            audio_data = loop.run_until_complete(enhanced_tts.generate_edge_tts_audio(text))
+            loop.close()
+            
+            if audio_data:
+                # Save to temporary file
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as temp_file:
+                    temp_file.write(audio_data)
+                    temp_path = temp_file.name
+                
+                # Return file for download
+                return send_file(temp_path, as_attachment=True, download_name='tts_audio.mp3', mimetype='audio/mpeg')
+        
+        elif method == 'gtts' and TTS_GTTS_AVAILABLE:
+            # Generate Google TTS audio
+            audio_data = enhanced_tts.generate_gtts_audio(text)
+            
+            if audio_data:
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as temp_file:
+                    temp_file.write(audio_data)
+                    temp_path = temp_file.name
+                
+                return send_file(temp_path, as_attachment=True, download_name='tts_audio.mp3', mimetype='audio/mpeg')
+        
+        elif method == 'pyttsx3' and enhanced_tts.pyttsx3_engine:
+            # Use pyttsx3 (client-side implementation needed)
+            return jsonify({
+                'success': True,
+                'method': 'pyttsx3',
+                'message': 'Use client-side pyttsx3 implementation'
+            })
+        
+        else:
+            # Fallback to browser TTS
+            return jsonify({
+                'success': True,
+                'method': 'browser',
+                'text': text,
+                'message': 'Use browser speech synthesis'
+            })
+    
+    except Exception as e:
+        logger.error(f"Enhanced TTS error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/tts-info')
+def tts_info():
+    """Get available TTS methods and recommendations"""
+    return jsonify({
+        'available_methods': enhanced_tts.available_methods,
+        'recommended_method': enhanced_tts.get_best_method(),
+        'capabilities': {
+            'edge_tts': TTS_EDGE_AVAILABLE,
+            'pyttsx3': TTS_PYTTSX3_AVAILABLE,
+            'gtts': TTS_GTTS_AVAILABLE
+        }
+    })
+
 # Initialize components
 logger.info("Initializing Voice Essay AI...")
 voice_processor = EnhancedVoiceProcessor()
@@ -498,102 +744,600 @@ def index():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎤 Voice Essay AI - Your Personal Essay Coach</title>
+    <title>HelloIvy - Essay Brainstormer</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; color: white; }
-        .container { max-width: 1000px; margin: 0 auto; padding: 40px 20px; }
-        .hero { text-align: center; padding: 60px 0; }
-        .hero h1 { font-size: 3.5rem; margin-bottom: 20px; text-shadow: 0 2px 10px rgba(0,0,0,0.3); }
-        .hero p { font-size: 1.3rem; margin-bottom: 40px; opacity: 0.9; }
-        .cta-buttons { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
-        .btn { display: inline-block; padding: 18px 36px; background: rgba(255,255,255,0.2); color: white; text-decoration: none; border-radius: 50px; font-size: 1.1rem; font-weight: 600; backdrop-filter: blur(10px); border: 2px solid rgba(255,255,255,0.3); transition: all 0.3s ease; }
-        .btn:hover { background: rgba(255,255,255,0.3); transform: translateY(-2px); box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
-        .btn.primary { background: rgba(255,255,255,0.9); color: #667eea; }
-        .btn.primary:hover { background: white; }
-        .status-panel { background: rgba(255,255,255,0.15); padding: 30px; border-radius: 20px; margin: 40px 0; backdrop-filter: blur(10px); }
-        .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
-        .status-item { text-align: center; }
-        .status-icon { font-size: 2rem; margin-bottom: 10px; }
-        .status-text { font-weight: 600; margin-bottom: 5px; }
-        .status-detail { opacity: 0.8; font-size: 0.9rem; }
-        .features { margin: 60px 0; }
-        .features h2 { text-align: center; font-size: 2.5rem; margin-bottom: 40px; }
-        .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; }
-        .feature { background: rgba(255,255,255,0.1); padding: 30px; border-radius: 15px; text-align: center; }
-        .feature-icon { font-size: 3rem; margin-bottom: 20px; }
-        .feature h3 { font-size: 1.5rem; margin-bottom: 15px; }
-        .improvement-tips { background: rgba(255,255,255,0.1); padding: 30px; border-radius: 15px; margin: 40px 0; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            color: #2c3e50;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 40px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .brand-name {
+            font-size: 20px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .brand-tagline {
+            color: #7f8c8d;
+            margin-left: 8px;
+        }
+
+        .user-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .help-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 2px solid #e1e8ed;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .help-btn:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #ff6b6b, #ffa500);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .sidebar {
+            position: fixed;
+            left: 40px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 100;
+        }
+
+        .sidebar-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 16px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 80px;
+        }
+
+        .sidebar-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        .sidebar-item.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .sidebar-icon {
+            width: 24px;
+            height: 24px;
+            margin-bottom: 8px;
+            font-size: 18px;
+        }
+
+        .sidebar-text {
+            font-size: 11px;
+            font-weight: 500;
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        .main-content {
+            margin-left: 180px;
+            padding: 60px 40px;
+            max-width: 800px;
+        }
+
+        .page-title {
+            color: #667eea;
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .main-heading {
+            font-size: 36px;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 40px;
+            line-height: 1.2;
+        }
+
+        .instruction-card {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .listen-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #ff6b6b, #ffa500);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .listen-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+        }
+
+        .instructions-list {
+            list-style: none;
+            margin-bottom: 24px;
+        }
+
+        .instructions-list li {
+            margin-bottom: 16px;
+            padding-left: 24px;
+            position: relative;
+            line-height: 1.6;
+            color: #5a6c7d;
+        }
+
+        .instructions-list li::before {
+            content: counter(item);
+            counter-increment: item;
+            position: absolute;
+            left: 0;
+            top: 0;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .instructions-list {
+            counter-reset: item;
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .custom-checkbox {
+            position: relative;
+            width: 20px;
+            height: 20px;
+        }
+
+        .custom-checkbox input {
+            position: absolute;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .checkmark {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 20px;
+            width: 20px;
+            background-color: white;
+            border: 2px solid #667eea;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .custom-checkbox input:checked ~ .checkmark {
+            background-color: #667eea;
+        }
+
+        .checkmark:after {
+            content: "";
+            position: absolute;
+            display: none;
+            left: 6px;
+            top: 3px;
+            width: 4px;
+            height: 8px;
+            border: solid white;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+
+        .custom-checkbox input:checked ~ .checkmark:after {
+            display: block;
+        }
+
+        .checkbox-label {
+            font-size: 14px;
+            color: #5a6c7d;
+            cursor: pointer;
+        }
+
+        .get-started-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .get-started-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .get-started-btn:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .illustration {
+            position: absolute;
+            right: 40px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 300px;
+            height: 200px;
+            opacity: 0.1;
+            z-index: 0;
+        }
+
+        .puzzle-piece {
+            position: absolute;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 8px;
+            opacity: 0.6;
+        }
+
+        .piece-1 {
+            width: 80px;
+            height: 60px;
+            top: 20px;
+            right: 100px;
+            transform: rotate(-10deg);
+        }
+
+        .piece-2 {
+            width: 60px;
+            height: 80px;
+            top: 100px;
+            right: 50px;
+            transform: rotate(15deg);
+        }
+
+        .piece-3 {
+            width: 70px;
+            height: 50px;
+            top: 150px;
+            right: 150px;
+            transform: rotate(-5deg);
+        }
+
+        .piece-4 {
+            width: 50px;
+            height: 70px;
+            top: 60px;
+            right: 200px;
+            transform: rotate(20deg);
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                top: auto;
+                transform: none;
+                flex-direction: row;
+                justify-content: center;
+                background: white;
+                padding: 10px;
+                box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+            }
+
+            .main-content {
+                margin-left: 0;
+                margin-bottom: 80px;
+                padding: 40px 20px;
+            }
+
+            .illustration {
+                display: none;
+            }
+
+            .header {
+                padding: 15px 20px;
+            }
+
+            .main-heading {
+                font-size: 28px;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="hero">
-            <h1>🎤 Voice Essay AI</h1>
-            <p>Your personal AI coach for creating compelling college application essays through natural conversation</p>
-            <div class="cta-buttons">
-                <a href="/voice-chat" class="btn primary">🚀 Start Voice Brainstorming</a>
-                <a href="/dashboard" class="btn">📊 View Dashboard</a>
-            </div>
+    <header class="header">
+        <div class="logo-section">
+            <div class="logo">H</div>
+            <span class="brand-name">helloivy</span>
+            <span class="brand-tagline">Essay Brainstormer</span>
         </div>
-        
-        <div class="status-panel">
-            <h2 style="text-align: center; margin-bottom: 30px;">🔧 System Status</h2>
-            <div class="status-grid">
-                <div class="status-item">
-                    <div class="status-icon">⚡</div>
-                    <div class="status-text">Flask Server</div>
-                    <div class="status-detail">Running and Ready</div>
-                </div>
-                <div class="status-item">
-                    <div class="status-icon">🎤</div>
-                    <div class="status-text">Voice Processing</div>
-                    <div class="status-detail">''' + ('Available' if voice_processor.is_available() else 'Limited Mode') + '''</div>
-                </div>
-                <div class="status-item">
-                    <div class="status-icon">🤖</div>
-                    <div class="status-text">AI Assistant</div>
-                    <div class="status-detail">''' + ('Ollama Connected' if ai_chat.is_available() else 'Enhanced Mode') + '''</div>
-                </div>
-                <div class="status-item">
-                    <div class="status-icon">💾</div>
-                    <div class="status-text">Data Storage</div>
-                    <div class="status-detail">Local JSON Files</div>
-                </div>
-            </div>
+        <div class="user-section">
+            <div class="help-btn">?</div>
+            <div class="user-avatar">A</div>
         </div>
-        
-        <div class="features">
-            <h2>✨ How It Works</h2>
-            <div class="feature-grid">
-                <div class="feature">
-                    <div class="feature-icon">🗣️</div>
-                    <h3>Natural Conversation</h3>
-                    <p>Chat naturally with AI about your experiences, challenges, and achievements. No scripted questions - just authentic dialogue.</p>
-                </div>
-                <div class="feature">
-                    <div class="feature-icon">🎯</div>
-                    <h3>Smart Note-Taking</h3>
-                    <p>AI automatically identifies key themes, lessons learned, and emotional growth from your stories.</p>
-                </div>
-                <div class="feature">
-                    <div class="feature-icon">📝</div>
-                    <h3>Essay Generation</h3>
-                    <p>Transform your conversation into a compelling, personalized college application essay with proper structure.</p>
-                </div>
-            </div>
+    </header>
+
+    <nav class="sidebar">
+        <div class="sidebar-item">
+            <div class="sidebar-icon">📊</div>
+            <div class="sidebar-text">My Dashboard</div>
         </div>
-        
-        ''' + ('''<div class="improvement-tips">
-            <h3>💡 For Enhanced AI Responses:</h3>
-            <ol style="margin: 15px 0; padding-left: 20px;">
-                <li>Install Ollama: <code style="background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px;">curl -fsSL https://ollama.ai/install.sh | sh</code></li>
-                <li>Start Ollama: <code style="background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px;">ollama serve</code></li>
-                <li>Download model: <code style="background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px;">ollama pull mistral:7b</code></li>
-                <li>Refresh this page</li>
+        <div class="sidebar-item active">
+            <div class="sidebar-icon">🏠</div>
+            <div class="sidebar-text">Essay Brainstormer</div>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <div class="page-title">Essay Brainstormer</div>
+        <h1 class="main-heading">Ready to start<br>Brainstorming?</h1>
+
+        <div class="instruction-card">
+            <div class="card-header">
+                <h2 class="card-title">Go Through Instructions Before We Start The Module</h2>
+                <button class="listen-btn">
+                    🔊 Listen
+                </button>
+            </div>
+
+            <ol class="instructions-list">
+                <li>This module helps you lay the foundation for powerful, personalized college essays.</li>
+                <li>Ivy will collect key stories, goals, and reflections – which are then used to build a custom essay structure aligned with your chosen prompts and colleges.</li>
+                <li>Find a quiet, distraction-free environment, since Ivy is a voice module and will be talking to you.</li>
+                <li>Ensure a stable internet connection – this will support smooth voice-to-text capture and prevent loss of any responses.</li>
+                <li>Be honest, detailed and specific in your responses.</li>
+                <li>The quality of your essay structure will depend on what you share here.</li>
             </ol>
-        </div>''' if not ai_chat.is_available() else '') + '''
+
+            <div class="checkbox-container">
+                <label class="custom-checkbox">
+                    <input type="checkbox" id="readInstructions">
+                    <span class="checkmark"></span>
+                </label>
+                <label for="readInstructions" class="checkbox-label">
+                    I have read all the instruction mentioned above.
+                </label>
+            </div>
+
+            <button class="get-started-btn" id="getStartedBtn" disabled>
+                Get Started →
+            </button>
+        </div>
+    </main>
+
+    <div class="illustration">
+        <div class="puzzle-piece piece-1"></div>
+        <div class="puzzle-piece piece-2"></div>
+        <div class="puzzle-piece piece-3"></div>
+        <div class="puzzle-piece piece-4"></div>
     </div>
+
+    <script>
+        // Handle checkbox and button state
+        const checkbox = document.getElementById('readInstructions');
+        const getStartedBtn = document.getElementById('getStartedBtn');
+
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                getStartedBtn.disabled = false;
+            } else {
+                getStartedBtn.disabled = true;
+            }
+        });
+
+        // Handle Get Started button click
+        getStartedBtn.addEventListener('click', function() {
+            if (!getStartedBtn.disabled) {
+                // Redirect to voice chat or show loading
+                console.log('Starting brainstorming session...');
+                // You can redirect to your voice chat page here
+                window.location.href = '/voice-chat';
+            }
+        });
+
+        // Handle Listen button (Text-to-Speech)
+        document.querySelector('.listen-btn').addEventListener('click', function() {
+            const instructions = [
+                "This module helps you lay the foundation for powerful, personalized college essays.",
+                "Ivy will collect key stories, goals, and reflections – which are then used to build a custom essay structure aligned with your chosen prompts and colleges.",
+                "Find a quiet, distraction-free environment, since Ivy is a voice module and will be talking to you.",
+                "Ensure a stable internet connection – this will support smooth voice-to-text capture and prevent loss of any responses.",
+                "Be honest, detailed and specific in your responses.",
+                "The quality of your essay structure will depend on what you share here."
+            ].join(' ');
+
+            if ('speechSynthesis' in window) {
+                // Stop any ongoing speech
+                speechSynthesis.cancel();
+                
+                const utterance = new SpeechSynthesisUtterance(instructions);
+                utterance.rate = 0.9;
+                utterance.pitch = 1.0;
+                utterance.volume = 0.8;
+                
+                // Try to find a good voice
+                const voices = speechSynthesis.getVoices();
+                const preferredVoice = voices.find(voice => 
+                    voice.name.includes('Google') || 
+                    voice.name.includes('Microsoft') ||
+                    voice.lang.startsWith('en')
+                );
+                
+                if (preferredVoice) {
+                    utterance.voice = preferredVoice;
+                }
+
+                utterance.onstart = function() {
+                    document.querySelector('.listen-btn').textContent = '⏸️ Stop';
+                };
+
+                utterance.onend = function() {
+                    document.querySelector('.listen-btn').innerHTML = '🔊 Listen';
+                };
+
+                speechSynthesis.speak(utterance);
+            } else {
+                alert('Text-to-speech is not supported in your browser.');
+            }
+        });
+
+        // Handle sidebar navigation
+        document.querySelectorAll('.sidebar-item').forEach(item => {
+            item.addEventListener('click', function() {
+                // Remove active class from all items
+                document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+                // Add active class to clicked item
+                this.classList.add('active');
+                
+                // Handle navigation based on the clicked item
+                const text = this.querySelector('.sidebar-text').textContent;
+                if (text === 'My Dashboard') {
+                    // Navigate to dashboard
+                    console.log('Navigating to dashboard...');
+                    // window.location.href = 'static/dashboard';
+                }
+            });
+        });
+
+        // Animate puzzle pieces
+        function animatePuzzlePieces() {
+            const pieces = document.querySelectorAll('.puzzle-piece');
+            pieces.forEach((piece, index) => {
+                piece.style.animation = `float ${3 + index * 0.5}s ease-in-out infinite`;
+            });
+        }
+
+        // CSS for floating animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes float {
+                0%, 100% { transform: translateY(0px) rotate(var(--rotation, 0deg)); }
+                50% { transform: translateY(-10px) rotate(var(--rotation, 0deg)); }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Set rotation variables for each piece
+        document.querySelector('.piece-1').style.setProperty('--rotation', '-10deg');
+        document.querySelector('.piece-2').style.setProperty('--rotation', '15deg');
+        document.querySelector('.piece-3').style.setProperty('--rotation', '-5deg');
+        document.querySelector('.piece-4').style.setProperty('--rotation', '20deg');
+
+        // Start animations when page loads
+        window.addEventListener('load', animatePuzzlePieces);
+    </script>
 </body>
 </html>'''
 
